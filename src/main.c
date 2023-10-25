@@ -17,6 +17,8 @@ unsigned char minutes = 0;
 unsigned char hours = 0;
 
 ISR(TIMER0_COMPA_vect);
+ISR(INT0_vect);
+ISR(INT1_vect);
 
 uint8_t  four_bit_mode [] = {
   0x33, // 4 bit mode, 2 line, 5x7 font
@@ -43,6 +45,8 @@ void setCursor(uint8_t , uint8_t );
 void clearDisplay();
 void intToString(int , char *);
 void initTimer();
+void time(unsigned char);
+void writeTime();
 
 void delay_ms( uint16_t ms ){
   _delay_ms( ms);
@@ -50,6 +54,13 @@ void delay_ms( uint16_t ms ){
 
 void delay_us( uint16_t us ){
   _delay_us( us);
+}
+
+void defaultMode(){
+  clearDisplay();
+  setCursor(1,5);
+  lcdStringWriter("12:00:00");
+
 }
 
 int main(){
@@ -61,15 +72,53 @@ int main(){
 	MCUCR |= (1 << ISC11 | 1 << ISC01);
 	GIMSK |= (1 << INT0 | 1 << INT1);
   while(1){
-    clearDisplay();
-    setCursor(1,1);
-    char str[10];
-    intToString(seconds, str);
-  lcdStringWriter(str);
-  delay_ms(1000);
-
+    // writeTime();
+    // delay_ms(1000);
+    defaultMode();
+    delay_ms(1000);
   }
   return 0;
+}
+
+void writeTime(){
+
+  clearDisplay();
+  setCursor(1,5);
+
+  if(hours>=10){
+    time(hours);
+  }
+  else{
+    lcdStringWriter("0");
+    time(hours);
+  }
+
+  if(minutes>=10){
+    time(minutes);
+  }
+  else{
+    lcdStringWriter("0");
+    time(minutes);
+  }
+  if(seconds>=10){
+    char str[10];
+    intToString(seconds, str);
+    lcdStringWriter(str);
+  }
+  else{
+    lcdStringWriter("0");
+    char str[10];
+    intToString(seconds, str);
+    lcdStringWriter(str);
+  }
+
+}
+
+void time(unsigned char time){
+  char str[10];
+  intToString(time, str);
+  lcdStringWriter(str);
+  lcdStringWriter(":");
 }
 
 void clearDisplay(){
@@ -92,7 +141,7 @@ void initLCD(){
   delay_us(100);
   lcdCommandwriter(0x28);
   delay_us(100);
-  lcdCommandwriter(0x0E);
+  lcdCommandwriter(0x0C);
   delay_us(100);
   lcdCommandwriter(0x01);
   delay_us(2000);
@@ -167,6 +216,8 @@ void initTimer(){
 	TIMSK = (1<<OCIE1A);
 }
 
+
+
 void intToString(int num, char* str) {
     int i = 0;
     int sign = 0;
@@ -198,3 +249,4 @@ void intToString(int num, char* str) {
     // Add null terminator
     str[i] = '\0';
 }
+
