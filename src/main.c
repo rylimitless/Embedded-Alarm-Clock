@@ -20,6 +20,14 @@ uint8_t  four_bit_mode [] = {
   0x06,
 }; 
 
+  unsigned char lcdIndex[]={
+    0x80,
+    0xC0,
+    0x94,
+    0xD4,
+};
+
+
 void initLCD();
 void lcdCommandwriter( unsigned char );
 void lcdStringWriter(char *);
@@ -36,20 +44,15 @@ void delay_us( uint16_t us ){
 }
 
 int main(){
-
+  _delay_ms(250);
   initLCD();
   
   while(1){
-    clearDisplay();
+    // clearDisplay();
     setCursor(1,1);
-  lcdStringWriter("Hello ");
+  lcdStringWriter("Hello World");
   delay_ms(1000);
-  clearDisplay();
-  lcdStringWriter("Rachelle");
-  delay_ms(1000);
-  clearDisplay();
-  lcdStringWriter("From Ry :)");
-  delay_ms(1000);
+
   }
   return 0;
 }
@@ -83,12 +86,10 @@ void initLCD(){
 }
 
 void lcdStringWriter( char * str ){
-  unsigned char i = 0;
-while(str[i]!=0)
-{
-lcdDataWriter(str[i]);
-i++;
-}
+  while( *str ){
+    lcdDataWriter( *str++ );
+    delay_us(100);
+  }
 }
 
 void lcdCommandwriter( unsigned char cmd ){
@@ -122,7 +123,7 @@ void lcdDataWriter(unsigned char data){
 }
 
 void setCursor(uint8_t row , uint8_t col){
-  unsigned char firstCharAdr[]={0x80,0xC0,0x94,0xD4};
-lcdCommandwriter(firstCharAdr[row-1] + col - 1);
+  unsigned char pos = lcdIndex[row-1] + col - 1;
+lcdCommandwriter(pos);
 delay_us(100);
 }
