@@ -14,7 +14,8 @@
 
 unsigned char seconds = 0;
 unsigned char minutes = 0;
-unsigned char hours = 0;
+unsigned char hours = 12;
+uint8_t state = 0;
 
 ISR(TIMER0_COMPA_vect);
 ISR(INT0_vect);
@@ -65,8 +66,10 @@ void defaultMode(){
 
 int main(){
   _delay_ms(250);
+  DDRD = 0x00;
+  PORTD = 0xFF;
+
   initLCD();
-  initTimer();
   sei();
 
 	MCUCR |= (1 << ISC11 | 1 << ISC01);
@@ -74,7 +77,13 @@ int main(){
   while(1){
     // writeTime();
     // delay_ms(1000);
-    defaultMode();
+    if(state){
+      initTimer();
+      writeTime();
+    }
+    else {
+      defaultMode();
+    }
     delay_ms(1000);
   }
   return 0;
@@ -154,6 +163,7 @@ void lcdStringWriter( char * str ){
     lcdDataWriter( *str++ );
     delay_us(100);
   }
+  delay_us(1000);
 }
 
 void lcdCommandwriter( unsigned char cmd ){
@@ -204,6 +214,8 @@ ISR(TIMER1_COMPA_vect){
   }
   if(hours == 24){
     hours = 0;
+    minutes = 0;
+    seconds = 0;
   }
 
 }
@@ -248,5 +260,91 @@ void intToString(int num, char* str) {
 
     // Add null terminator
     str[i] = '\0';
+}
+
+ISR(INT0_vect){
+  uint8_t i = 5;
+  TCCR1B = 0;
+  lcdCommandwriter(0x0F);
+  
+  while(1){
+    setCursor(1,i);
+    _delay_ms(100);
+    if(i==5){
+      if(!(PIND & (1<<PD0))){
+        hours+=1;
+        if(hours>=24){
+          hours = 0;
+        }
+        writeTime();
+      }
+      if(!(PIND & (1<<PD1))){
+        hours+=10;
+        if(hours>=24){
+          hours = 0;
+        }
+        writeTime();
+      }
+    }
+
+    if(!(PIND & 1<<PD4)){
+      i = 8;
+      setCursor(1,i);
+    }
+
+    if(i==8){
+      if(!(PIND & (1<<PD0))){
+        minutes+=1;
+        if(minutes>=60){
+          minutes = 0;
+        }
+        writeTime();
+      }
+      if(!(PIND & (1<<PD1))){
+        minutes+=10;
+        if(minutes>=60){
+          minutes = 0;
+        }
+        writeTime();
+      }
+    }
+
+    if(!(PIND & 1<<PD5)){
+      i=11;
+      setCursor(1,i);
+    }
+
+    if(i==11){
+      if(!(PIND & (1<<PD0))){
+        seconds+=1;
+        if(seconds>=60){
+          seconds = 0;
+        }
+        writeTime();
+      }
+      if(!(PIND & (1<<PD1))){
+        seconds+=10;
+        if(seconds>=60){
+          seconds = 0;
+        }
+        writeTime();
+      }
+    }
+
+    if(!(PIND & 1<<PD6)){
+      initTimer();
+      lcdCommandwriter(0x0C);
+      state = 1;
+      break;
+    }
+    
+  }
+
+}
+
+ISR(INT1_vect){
+    initTimer();
+    state = 1;
+
 }
 
