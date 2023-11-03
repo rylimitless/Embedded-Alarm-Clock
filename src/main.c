@@ -21,14 +21,19 @@ Date: 25/10/2023
 #define BUZZER PB3
 
 typedef struct {
+  char * identifier;
+
   volatile uint8_t hours;
   volatile uint8_t minutes;
   volatile uint8_t seconds;
+  uint8_t row;
+
 }ClockTime;
 
 uint8_t twelve_hour_mode = 0;
 
-ClockTime clockTime, alarmTime;
+ClockTime clockTime={"Time",12,0,0,1}, 
+          alarmTime={"Alarm",0,0,0,2};
 
 uint8_t buzzer_time = 0;
 
@@ -72,7 +77,9 @@ void startClock();
 void time(unsigned char);
 void updateLCD();
 void updateLCDAlarm();
+void paint(ClockTime *);
 void updateAlarmTime();
+void setInternalTime(ClockTime *);
 
 /**
  * The function setTime sets the hours, minutes, and seconds variables to the specified values and sets
@@ -88,19 +95,11 @@ void updateAlarmTime();
  * *Note : The fuction updates the global variables hours, minutes and seconds.
  * 
  */
-void setTime(uint8_t hrs , uint8_t mins  , uint8_t secs , ClockTime * time){
-  hours = hrs;
-  minutes = mins;
-  seconds = secs;
-}
-
-void defaultMode(){
-  clearDisplay();
-  setCursor(1, 5);
-  // lcdStringWriter("12:00:00");
-  updateLCD();
-
-} 
+// void setTime(uint8_t hrs , uint8_t mins  , uint8_t secs , ClockTime * time){
+//   hours = hrs;
+//   minutes = mins;
+//   seconds = secs;
+// }
 
 void init(){
   _delay_ms(250);
@@ -117,21 +116,17 @@ void init(){
 int main(){
   init();
   while(1){
-    if(state){
-      // startClock();
-      updateLCD();
-    }
-    if(alarmState){
-      updateLCDAlarm();
-    }
-    if(defaultState){
-      defaultMode();
-      updateLCDAlarm();
-    }
-
+    
+      paint(&clockTime);
+      paint(&alarmTime);
+ 
     if(PIND & 1<<PD0){
       PORTB &= ~(1<<BUZZER);
       //Todo : turn on the buzzer
+    }
+    
+    if(checkTime()){
+      PORTB |= (1<<BUZZER);
     }
 
     //Todo : turn off the buzzer
@@ -140,41 +135,24 @@ int main(){
   return 0;
 }
 
-/**
- * The function "updateLCD" displays the current time on an LCD display, with leading zeros if
- * necessary. The time is displayed in the format HH:MM:SS.
- */
 
-void updateLCD(){
-  // clearDisplay();
-  setCursor(1,1);
-  lcdStringWriter("Time");
-  setCursor(1,7);
+void paint(ClockTime *t_time){
 
-  time(clockTime.hours);
+  setCursor(t_time->row,1);
+  lcdStringWriter(t_time->identifier);
+  setCursor(t_time->row,7);
+
+  time(t_time->hours);
   lcdStringWriter(":");
-
-  time(clockTime.minutes);
+  time(t_time->minutes);
   lcdStringWriter(":");
-
-  time(clockTime.seconds);
+  time(t_time->seconds);
 
 }
 
-void updateLCDAlarm(){
-  // clearDisplay();
-  setCursor(2,1);
-  lcdStringWriter("Alarm");
-  setCursor(2,7);
-
-  time(alarmTime.hours);
-  lcdStringWriter(":");
-
-  time(alarmTime.minutes);
-  lcdStringWriter(":");
-
-  time(alarmTime.seconds);
-}
+// void updateLCD(){
+//   paint(1,"Time",&clockTime);
+// }
 
 void time(unsigned char time){
   char str[10];
@@ -293,17 +271,17 @@ ISR(TIMER1_COMPA_vect){
     clockTime.seconds = 0;
   }
 
-  if(alarmState){
-   if(checkTime()){
+  // if(alarmState){
+  //  if(checkTime()){
 
-   }
-  }
+  //  }
+  // }
 
 }
 
 uint8_t checkTime(){
-  return (alarmTime.hours==hours && alarmTime.minutes ==minutes
-    && alarmTime.seconds == seconds);
+  return (alarmTime.hours==clockTime.hours 
+    && alarmTime.minutes ==clockTime.minutes);
 }
 
 /**
@@ -346,157 +324,88 @@ void changetime(uint8_t mode){
 
 //alarm time
 ISR(INT0_vect){
-  uint8_t i = 7;
-  TCCR1B = 0;
-  lcdCommandwriter(0x0F);
-  
-  while(1){
-    setCursor(1,i);
-    _delay_ms(100);
-    if(i==7){
-      if(!(PIND & (1<<PD0))){
-        hours+=1;
-        if(hours>=24){
-          hours = 0;
-        }
-        updateLCD();
-      }
-      if(!(PIND & (1<<PD1))){
-        hours+=10;
-        if(hours>=24){
-          hours = 0;
-        }
-        updateLCD();
-      }
-    }
-
-    if(!(PIND & 1<<PD4)){
-      i = 10;
-      setCursor(1,i);
-    }
-
-    if(i==10){
-      if(!(PIND & (1<<PD0))){
-        minutes+=1;
-        if(minutes>=60){
-          minutes = 0;
-        }
-        updateLCD();
-      }
-      if(!(PIND & (1<<PD1))){
-        minutes+=10;
-        if(minutes>=60){
-          minutes = 0;
-        }
-        updateLCD();
-      }
-    }
-
-    if(!(PIND & 1<<PD5)){
-      i=13;
-      setCursor(1,i);
-    }
-
-    if(i==13){
-      if(!(PIND & (1<<PD0))){
-        seconds+=1;
-        if(seconds>=60){
-          seconds = 0;
-        }
-        updateLCD();
-      }
-      if(!(PIND & (1<<PD1))){
-        seconds+=10;
-        if(seconds>=60){
-          seconds = 0;
-        }
-        updateLCD();
-      }
-    }
-
-    if(!(PIND & 1<<PD6)){
-      startClock();
-      lcdCommandwriter(0x0C);
-      state = 1;
-      break;
-    }
-    
-  }
+  setInternalTime(&clockTime);
+  state = 1;
+  startClock();
 }
 
 
 //clocktime
 ISR(INT1_vect){
+ setInternalTime(&alarmTime);
+ alarmState = 1;
+}
+
+void setInternalTime(ClockTime * time){
   uint8_t i = 7;
-  // TCCR0B = 0;
   lcdCommandwriter(0x0F);
   
   while(1){
-    setCursor(2,i);
+    setCursor(time->row,i);
     _delay_ms(100);
     if(i==7){
       if(!(PIND & (1<<PD0))){
-        alarmTime.hours+=1;
-        if(alarmTime.hours>=24){
-          alarmTime.hours = 0;
+        time->hours+=1;
+        if(time->hours>=24){
+          time->hours = 0;
         }
-        updateLCDAlarm();
+        paint(time);
       }
       if(!(PIND & (1<<PD1))){
-        alarmTime.hours+=10;
-        if(alarmTime.hours>=24){
-          alarmTime.hours = 0;
+          time->hours+=10;
+        if(time->hours>=24){
+            time->hours = 0;
         }
-        updateLCDAlarm();
+        paint(time);
       }
     }
 
     if(!(PIND & 1<<PD4)){
       i = 10;
-      setCursor(2,i);
+      setCursor(time->row,i);
     }
 
     if(i==8){
       if(!(PIND & (1<<PD0))){
-        alarmTime.minutes+=1;
-        if(alarmTime.minutes>=60){
-          alarmTime.minutes = 0;
+        time->minutes+=1;
+        if(time->minutes>=60){
+          time->minutes = 0;
         }
-        updateLCDAlarm();
+        paint(time);
       }
       if(!(PIND & (1<<PD1))){
-        alarmTime.minutes+=10;
-        if(alarmTime.minutes>=60){
-          alarmTime.minutes = 0;
+        time->minutes+=10;
+        if(time->minutes>=60){
+          time->minutes = 0;
         }
-        updateLCDAlarm();
+        paint(time);
       }
     }
 
     if(!(PIND & 1<<PD5)){
       i=13;
-      setCursor(2,i);
+      setCursor(time->row,i);
     }
 
     if(i==13){
       if(!(PIND & (1<<PD0))){
-        alarmTime.seconds+=1;
-        if(alarmTime.seconds>=60){
-          alarmTime.seconds = 0;
+        time->seconds+=1;
+        if(time->seconds>=60){
+          time->seconds = 0;
         }
-        updateLCDAlarm();
+        paint(time);
       }
       if(!(PIND & (1<<PD1))){
-        alarmTime.seconds+=10;
-        if(alarmTime.seconds>=60){
-          alarmTime.seconds = 0;
+        time->seconds+=10;
+        if(time->seconds>=60){
+          time->seconds = 0;
         }
-        updateLCDAlarm();
+        paint(time);
       }
     }
 
     if(!(PIND & 1<<PD6)){
-      startAlarmClock();
+      // startAlarmClock();
       lcdCommandwriter(0x0C);
       alarmState = 1;
       break;
