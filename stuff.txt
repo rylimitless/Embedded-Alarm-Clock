@@ -1,0 +1,7 @@
+Clock should have a mechanism to set and store the current time.
+
+Clock should have a mechanism to set and store an alarm time.
+
+Clock should sound a buzzer at the set alarm time if enabled.
+
+Clock should have a mechanism to stop the buzzer if alarm was triggered.
