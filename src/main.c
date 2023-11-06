@@ -22,26 +22,26 @@ Date: 25/10/2023
 
 typedef struct {
   char * identifier;
-
-  volatile uint8_t hours;
-  volatile uint8_t minutes;
-  volatile uint8_t seconds;
+  uint8_t hours;
+  uint8_t minutes;
+  uint8_t seconds;
   uint8_t row;
-
+  uint8_t isPM;
 }ClockTime;
 
-uint8_t twelve_hour_mode = 0;
 
-ClockTime clockTime={"Time",12,0,0,1}, 
-          alarmTime={"Alarm",0,0,0,2};
+ClockTime clockTime={"Time",12,0,0,1,0}, 
+          alarmTime={"Alarm",0,0,0,2,0};
 
 uint8_t buzzer_time = 0;
 
-
+uint8_t twelve_hour_mode = 0;
+uint8_t hourflag = 24;
 //Alarm state
 uint8_t alarmState = 0;
 uint8_t defaultState = 1;
 uint8_t state = 0;
+uint8_t modeCounter = 0;
 
 ISR(TIMER0_COMPA_vect);
 ISR(INT0_vect);
@@ -75,10 +75,7 @@ void clearDisplay();
 void convertToString(int , char *);
 void startClock();
 void time(unsigned char);
-void updateLCD();
-void updateLCDAlarm();
 void paint(ClockTime *);
-void updateAlarmTime();
 void setInternalTime(ClockTime *);
 
 /**
@@ -119,12 +116,12 @@ int main(){
     
       paint(&clockTime);
       paint(&alarmTime);
- 
-    if(PIND & 1<<PD0){
+
+    if(!(PIND & (1<<PD0))){
       PORTB &= ~(1<<BUZZER);
       //Todo : turn on the buzzer
     }
-    
+
     if(checkTime()){
       PORTB |= (1<<BUZZER);
     }
@@ -148,14 +145,24 @@ void paint(ClockTime *t_time){
   lcdStringWriter(":");
   time(t_time->seconds);
 
+  if(twelve_hour_mode){
+    if(t_time->isPM){
+      setCursor(t_time->row,16);
+      lcdStringWriter("PM");
+  }else{
+    setCursor(t_time->row,16);
+    lcdStringWriter("AM");
+  }
+  }else{
+    setCursor(t_time->row,15);
+    lcdStringWriter("  ");
+  
+  }
+
 }
 
-// void updateLCD(){
-//   paint(1,"Time",&clockTime);
-// }
-
 void time(unsigned char time){
-  char str[10];
+  char str[3];
   convertToString(time, str);
   lcdStringWriter(str);
 }
@@ -265,23 +272,21 @@ ISR(TIMER1_COMPA_vect){
     clockTime.minutes = 0;
     clockTime.hours++;
   }
-  if(clockTime.hours == 24){
+  if(clockTime.hours > hourflag){
+    if(twelve_hour_mode){
+      clockTime.isPM = !clockTime.isPM;
+    }
     clockTime.hours = 0;
     clockTime.minutes = 0;
     clockTime.seconds = 0;
   }
 
-  // if(alarmState){
-  //  if(checkTime()){
-
-  //  }
-  // }
-
 }
 
 uint8_t checkTime(){
   return (alarmTime.hours==clockTime.hours 
-    && alarmTime.minutes ==clockTime.minutes);
+    && alarmTime.minutes ==clockTime.minutes 
+      && alarmTime.isPM == clockTime.isPM);
 }
 
 /**
@@ -299,16 +304,6 @@ void startAlarmClock(){
   alarmState =1;
 }
 
-
-/**
- * The function converts an integer to a string representation.
- * 
- * @param num The num parameter is an the integer that needs to be converterd to a string.
- * @param str The `str` parameter is a pointer to a character array where the converted integer will be
- * stored as a string.
- * 
- * !Note : The function is designed to work with 2 digit numbers only. 
- */
 
 void convertToString(int num, char * str) {
   str[0] = num / 10 + '0';
@@ -338,6 +333,7 @@ ISR(INT1_vect){
 
 void setInternalTime(ClockTime * time){
   uint8_t i = 7;
+  uint8_t j = 0;
   lcdCommandwriter(0x0F);
   
   while(1){
@@ -346,18 +342,26 @@ void setInternalTime(ClockTime * time){
     if(i==7){
       if(!(PIND & (1<<PD0))){
         time->hours+=1;
-        if(time->hours>=24){
+        if(time->hours>=hourflag){
           time->hours = 0;
         }
         paint(time);
       }
       if(!(PIND & (1<<PD1))){
-          time->hours+=10;
-        if(time->hours>=24){
-            time->hours = 0;
+        j++;
+        if(j==1){
+          twelve_hour_mode = !twelve_hour_mode;
+          hourflag = 12;
         }
+        if(j==2){
+          time->isPM = !time->isPM;
+        }
+        if(j==3){
+          j=0;
+        }        
         paint(time);
-      }
+    }
+
     }
 
     if(!(PIND & 1<<PD4)){
@@ -405,7 +409,6 @@ void setInternalTime(ClockTime * time){
     }
 
     if(!(PIND & 1<<PD6)){
-      // startAlarmClock();
       lcdCommandwriter(0x0C);
       alarmState = 1;
       break;
